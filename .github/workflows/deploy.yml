@@ -42,7 +42,20 @@ jobs:
           mkdir -p ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -p "${SSH_PORT:-22}" "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -T 20 -p "${SSH_PORT:-22}" "$SSH_HOST" >> ~/.ssh/known_hosts
+          echo "known_hosts entries: $(wc -l < ~/.ssh/known_hosts)"
+          ssh-keygen -l -f ~/.ssh/deploy_key >/dev/null && echo "deploy key format OK"
+
+      - name: Test SSH login
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          ssh -v -o BatchMode=yes -o ConnectTimeout=20 -i ~/.ssh/deploy_key \
+            -o UserKnownHostsFile=$HOME/.ssh/known_hosts \
+            -p "${SSH_PORT:-22}" "$SSH_USER@$SSH_HOST" 'echo LOGIN_OK; pwd' 2>&1 | grep -v "^debug1: \(Reading\|Applying\|kex_\|SSH2_MSG\|expecting\|rekey\|Remote protocol\|compat\|Local version\|channel\|pledge\|client_input\|Sending env\|Requesting\|Entering\|Sending command\|Will attempt\|identity file\|Skipping\|Server accepts\|Enabling\)"
+          test "${PIPESTATUS[0]}" -eq 0
 
       - name: Mirror site over SFTP
         env:

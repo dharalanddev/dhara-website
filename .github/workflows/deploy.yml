@@ -46,38 +46,46 @@ jobs:
           echo "known_hosts entries: $(wc -l < ~/.ssh/known_hosts)"
           ssh-keygen -l -f ~/.ssh/deploy_key >/dev/null && echo "deploy key format OK"
 
-      - name: Test SSH login
-        env:
-          SSH_HOST: ${{ secrets.SSH_HOST }}
-          SSH_PORT: ${{ secrets.SSH_PORT }}
-          SSH_USER: ${{ secrets.SSH_USER }}
-        run: |
-          ssh -v -o BatchMode=yes -o ConnectTimeout=20 -i ~/.ssh/deploy_key \
-            -o UserKnownHostsFile=$HOME/.ssh/known_hosts \
-            -p "${SSH_PORT:-22}" "$SSH_USER@$SSH_HOST" 'echo LOGIN_OK; pwd' 2>&1 | grep -v "^debug1: \(Reading\|Applying\|kex_\|SSH2_MSG\|expecting\|rekey\|Remote protocol\|compat\|Local version\|channel\|pledge\|client_input\|Sending env\|Requesting\|Entering\|Sending command\|Will attempt\|identity file\|Skipping\|Server accepts\|Enabling\)"
-          test "${PIPESTATUS[0]}" -eq 0
-
-      - name: Mirror site over SFTP
+      - name: Test SSH login and remote tools
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_PORT: ${{ secrets.SSH_PORT }}
           SSH_USER: ${{ secrets.SSH_USER }}
           REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
         run: |
-          lftp -e "
-            set sftp:auto-confirm yes;
-            set sftp:connect-program 'ssh -a -x -i $HOME/.ssh/deploy_key -o UserKnownHostsFile=$HOME/.ssh/known_hosts';
-            set net:max-retries 2;
-            mirror --reverse --delete --verbose --parallel=4 \
-              --exclude-glob .git/ \
-              --exclude-glob .github/ \
-              --exclude-glob .well-known/ \
-              --exclude-glob cgi-bin/ \
-              --exclude-glob .htaccess \
-              --exclude-glob .gitignore \
-              --exclude-glob .DS_Store \
-              --exclude-glob README.md \
-              --exclude-glob _notes/ \
-              ./ ${REMOTE_PATH%/}/;
-            bye
-          " -u "$SSH_USER," "sftp://$SSH_HOST:${SSH_PORT:-22}"
+          SSH="ssh -o BatchMode=yes -o ConnectTimeout=20 -i $HOME/.ssh/deploy_key -o UserKnownHostsFile=$HOME/.ssh/known_hosts -p ${SSH_PORT:-22}"
+          $SSH "$SSH_USER@$SSH_HOST" "echo LOGIN_OK; cd '${REMOTE_PATH%/}' && pwd; command -v rsync || echo NO_RSYNC"
+          echo "--- sftp subsystem check"
+          echo pwd | sftp -b - -o BatchMode=yes -i ~/.ssh/deploy_key -o UserKnownHostsFile=$HOME/.ssh/known_hosts -P "${SSH_PORT:-22}" "$SSH_USER@$SSH_HOST" || echo "SFTP_FAILED"
+
+      - name: Deploy
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
+        run: |
+          SSH="ssh -o BatchMode=yes -i $HOME/.ssh/deploy_key -o UserKnownHostsFile=$HOME/.ssh/known_hosts -p ${SSH_PORT:-22}"
+          DEST="${REMOTE_PATH%/}/"
+          if $SSH "$SSH_USER@$SSH_HOST" "command -v rsync" >/dev/null 2>&1; then
+            echo "Deploying with rsync"
+            rsync -rlvz --delete --chmod=D755,F644 -e "$SSH" \
+              --exclude '.git/' --exclude '.github/' --exclude '.well-known/' \
+              --exclude 'cgi-bin/' --exclude '.htaccess' --exclude '.gitignore' \
+              --exclude '.DS_Store' --exclude 'README.md' --exclude '_notes/' \
+              ./ "$SSH_USER@$SSH_HOST:$DEST"
+          else
+            echo "No rsync on server - deploying with lftp"
+            lftp <<EOF
+          set cmd:fail-exit yes
+          set net:max-retries 2
+          set net:timeout 20
+          set sftp:auto-confirm yes
+          set sftp:connect-program "ssh -a -x -i $HOME/.ssh/deploy_key -o UserKnownHostsFile=$HOME/.ssh/known_hosts"
+          debug 3
+          open -u "$SSH_USER," -p ${SSH_PORT:-22} sftp://$SSH_HOST
+          cd "$DEST"
+          mirror --reverse --delete --verbose --parallel=4 --exclude-glob .git/ --exclude-glob .github/ --exclude-glob .well-known/ --exclude-glob cgi-bin/ --exclude-glob .htaccess --exclude-glob .gitignore --exclude-glob .DS_Store --exclude-glob README.md --exclude-glob _notes/ ./ ./
+          bye
+          EOF
+          fi

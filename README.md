@@ -14,12 +14,13 @@ Header and footer are repeated in every page — change all pages together.
 ## Before launch
 1. **Zoho forms** — create two Leads webforms in Dhara's CRM (org 60073533465):
    "Dhara Waitlist" and "Dhara Contact". Fields: First Name, Last Name, Email,
-   **Phone** (not Mobile), Country, Lead Source (hidden), Description (hidden).
+   **Phone** (not Mobile), Description, Lead Source (hidden). Country is NOT a webform field
+   (it's a picklist inside Zoho's Address field) - the site folds it into Description.
    Add picklist values `Website - Waitlist` and `Website - Contact` to Lead Source.
    Return URL: `https://dharalanddev.com/thank-you.html`.
    Copy each form's `xnQsjsdp` and `xmIwtLD` values into the matching
    `ZOHO_WAITLIST_*` / `ZOHO_CONTACT_*` placeholders in upcoming-projects.html and contact.html.
-   Location / size / budget / purpose / timeline / message are folded into
+   Country / location / size / budget / purpose / timeline / message are folded into
    Description by `assets/js/site.js` (no paid custom fields needed).
 2. **Photos** — search for `PHOTO:` comments and `.hero-photo` in site.css. Real Nilgiris
    photography only (see Dhara Website Blueprint §6).

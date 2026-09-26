@@ -1,0 +1,70 @@
+name: Deploy to MilesWeb
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Guard - REMOTE_PATH must end in public_html
+        env:
+          REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
+        run: |
+          case "${REMOTE_PATH%/}" in
+            */public_html) echo "REMOTE_PATH ok" ;;
+            *) echo "::error::REMOTE_PATH must end in public_html (got '${REMOTE_PATH}')"; exit 1 ;;
+          esac
+
+      - name: Guard - Zoho form tokens filled in
+        run: |
+          if grep -rl "ZOHO_.*_X" --include=*.html . ; then
+            echo "::warning::Zoho WebToLead tokens are still placeholders - forms will not reach the CRM yet."
+          fi
+
+      - name: Install lftp
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp
+
+      - name: Set up SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "${SSH_PORT:-22}" "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Mirror site over SFTP
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          REMOTE_PATH: ${{ secrets.REMOTE_PATH }}
+        run: |
+          lftp -e "
+            set sftp:auto-confirm yes;
+            set sftp:connect-program 'ssh -a -x -i $HOME/.ssh/deploy_key -o UserKnownHostsFile=$HOME/.ssh/known_hosts';
+            set net:max-retries 2;
+            mirror --reverse --delete --verbose --parallel=4 \
+              --exclude-glob .git/ \
+              --exclude-glob .github/ \
+              --exclude-glob .well-known/ \
+              --exclude-glob cgi-bin/ \
+              --exclude-glob .htaccess \
+              --exclude-glob .gitignore \
+              --exclude-glob .DS_Store \
+              --exclude-glob README.md \
+              --exclude-glob _notes/ \
+              ./ ${REMOTE_PATH%/}/;
+            bye
+          " -u "$SSH_USER," "sftp://$SSH_HOST:${SSH_PORT:-22}"

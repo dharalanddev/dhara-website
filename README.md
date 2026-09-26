@@ -12,16 +12,12 @@ about · contact (enquiry form) · privacy · thank-you · 404
 Header and footer are repeated in every page — change all pages together.
 
 ## Before launch
-1. **Zoho forms** — create two Leads webforms in Dhara's CRM (org 60073533465):
-   "Dhara Waitlist" and "Dhara Contact". Fields: First Name, Last Name, Email,
-   **Phone** (not Mobile), Description, Lead Source (hidden). Country is NOT a webform field
-   (it's a picklist inside Zoho's Address field) - the site folds it into Description.
-   Add picklist values `Website - Waitlist` and `Website - Contact` to Lead Source.
-   Return URL: `https://dharalanddev.com/thank-you.html`.
-   Copy each form's `xnQsjsdp` and `xmIwtLD` values into the matching
-   `ZOHO_WAITLIST_*` / `ZOHO_CONTACT_*` placeholders in upcoming-projects.html and contact.html.
-   Country / location / size / budget / purpose / timeline / message are folded into
-   Description by `assets/js/site.js` (no paid custom fields needed).
+1. **Zoho forms** - DONE 26 Sep 2026. One Leads webform "Dhara Website" in Dhara's CRM
+   (org 60073533465); both site forms post to it (IDs in upcoming-projects.html / contact.html).
+   Fields: Company (hidden, "Website enquiry" - mandatory in Zoho), First/Last Name, Email, Phone,
+   Description. Country / location / size / budget / purpose / timeline / message and the
+   originating form ("Submitted from: Waitlist|Contact") are folded into Description by
+   assets/js/site.js. Redirect: https://dharalanddev.com/thank-you.html.
 2. **Photos** — search for `PHOTO:` comments and `.hero-photo` in site.css. Real Nilgiris
    photography only (see Dhara Website Blueprint §6).
 3. **404 page** — `.htaccess` is not deployed (server-managed). Add `ErrorDocument 404 /404.html` to it once via mPanel File Manager.

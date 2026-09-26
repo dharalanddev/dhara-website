@@ -18,6 +18,9 @@ Header and footer are repeated in every page — change all pages together.
    Description. Country / location / size / budget / purpose / timeline / message and the
    originating form ("Submitted from: Waitlist|Contact") are folded into Description by
    assets/js/site.js. Redirect: https://dharalanddev.com/thank-you.html.
+   Automation: workflow rule "Website lead alert" emails info@ (Company = "Website enquiry");
+   webform acknowledgement sends template "Website enquiry acknowledgement" to the enquirer.
+   NOTE: editing the webform in Zoho regenerates xnQsjsdp/xmIwtLD - re-copy them here.
 2. **Photos** — search for `PHOTO:` comments and `.hero-photo` in site.css. Real Nilgiris
    photography only (see Dhara Website Blueprint §6).
 3. **404 page** — `.htaccess` is not deployed (server-managed). Add `ErrorDocument 404 /404.html` to it once via mPanel File Manager.
